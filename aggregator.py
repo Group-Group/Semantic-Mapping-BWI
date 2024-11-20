@@ -37,7 +37,7 @@ class PointCloudAggregator:
 
         return nearest_match
     
-    def aggregate_pointcloud(self, pcl: PointCloud, target: PointCloud, transformation: np.ndarray):
+    def aggregate_pointcloud(self, pcl: PointCloud, target: PointCloud, transformation: np.ndarray, verbose: bool = True):
         if not target: # new pointcloud
             if not pcl.is_empty():
                 self._scene[pcl.label].append(pcl)
@@ -48,8 +48,14 @@ class PointCloudAggregator:
         reg_p2p = o3d.pipelines.registration.registration_icp(
             pcl._pcl, target._pcl, self._eps, transformation, o3d.pipelines.registration.TransformationEstimationPointToPoint()
         )
-        print(f"[ICP] Fitness (higher is better): {reg_p2p.fitness}\tRMSE (lower is better): {reg_p2p.inlier_rmse}")
+        if verbose:
+            print(f"[ICP] Fitness (higher is better): {reg_p2p.fitness}\tRMSE (lower is better): {reg_p2p.inlier_rmse}")
         pcl = pcl.transform(reg_p2p.transformation)
         target += pcl
+        # todo try an iterative aggregator using icp
+        # start with small epsilons, go larger with more iterations
+        # 1st pass has lots of bad pointclouds
+        # 2nd pass has fewer
+        # continue until stop criteria
         return target
     

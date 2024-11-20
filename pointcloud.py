@@ -22,23 +22,24 @@ class PointCloud:
         self.timestamp = datetime.now()
 
     def is_empty(self):
-        return self.points.size == 0
+        return len(self._pcl.points) == 0
 
     def transform(self, transformation):
         # in place
         self._pcl.transform(transformation)
         return self
     
-    def clean(self, eps=0.05, min_points=10):
+    def clean(self, eps=0.05, min_points=10, verbose: bool=True):
         # deduplication
         self._pcl.remove_duplicated_points()
 
         # remove outliers with dbscan
         labels = self._pcl.cluster_dbscan(eps=eps, min_points=min_points)
         labels = np.array(labels)
-        print(f"[DBSCAN] Found {labels.max() + 1} clusters")
         noise = labels == -1
-        print(f"[DBSCAN] Removing {noise.sum()} noise points")
+        if verbose:
+            print(f"[DBSCAN] Found {labels.max() + 1} clusters")
+            print(f"[DBSCAN] Removing {noise.sum()} noise points")
         self.points = self.points[~noise]
         return self
     
