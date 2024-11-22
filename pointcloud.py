@@ -45,7 +45,7 @@ class PointCloud:
     
     def save(self, filename=None):
         filename = filename or str(self.timestamp).replace(" ", "_") + "_" + self.label
-        vertex = np.array([(x, y, z) for x, y, z in self._points], 
+        vertex = np.array([(x, y, z) for x, y, z in self.points], 
                           dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
         el = PlyElement.describe(vertex, 'vertex')
         PlyData([el]).write(filename)

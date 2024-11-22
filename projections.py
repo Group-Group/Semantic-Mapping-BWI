@@ -26,6 +26,7 @@ k6 = 1.2463057041168213
 p2 = -0.0004227574390824884
 p1 = 0.0006175598246045411
 
+
 class PointProjector:
     def __init__(self):
         self._K = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]])
