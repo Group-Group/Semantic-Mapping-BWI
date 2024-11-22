@@ -22,7 +22,7 @@ class PointCloud:
         self.timestamp = datetime.now()
 
     def is_empty(self):
-        return len(self._pcl.points) == 0
+        return len(self) == 0
 
     def transform(self, transformation):
         # in place
@@ -60,3 +60,5 @@ class PointCloud:
         combined = np.vstack((self.points, pcl.points))
         return PointCloud(combined, self.label)
     
+    def __len__(self):
+        return len(self._pcl.points)
