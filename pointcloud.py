@@ -4,11 +4,12 @@ import open3d as o3d
 from plyfile import PlyData, PlyElement
 
 class PointCloud:
-    def __init__(self, points=[], label=None):
+    def __init__(self, points=[], label=None, transformation=None):
         points = [] if isinstance(points, np.ndarray) and points.shape[0] == 0 else points
         self._pcl = o3d.geometry.PointCloud()
         self._pcl.points = o3d.utility.Vector3dVector(points)
         self.label = label
+        self.world_transformation = transformation # from camera coordinates to world coordinates, should be np array
         self.timestamp = datetime.now()
     
     @property
@@ -26,6 +27,7 @@ class PointCloud:
 
     def transform(self, transformation):
         # in place
+        self.world_transformation = transformation
         self._pcl.transform(transformation)
         return self
     
@@ -50,15 +52,12 @@ class PointCloud:
         el = PlyElement.describe(vertex, 'vertex')
         PlyData([el]).write(filename)
 
-    def __getitem__(self, indices):
-        return self._points[indices]
-
     def __str__(self):
-        return str(self.points)
+        return f"{self.label} pointcloud | points: " + str(self.points)
     
     def __add__(self, pcl):
         combined = np.vstack((self.points, pcl.points))
-        return PointCloud(combined, self.label)
+        return PointCloud(combined, self.label, self.world_transformation)
     
     def __len__(self):
         return len(self._pcl.points)
