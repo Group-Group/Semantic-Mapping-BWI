@@ -55,7 +55,8 @@ class PointProjector:
                 points.append(point[:3])
         
         points = np.array(points)
-        return PointCloud(points)
+        pcl = PointCloud(points)
+        return pcl
 
     def undistort_image(self, image):
         return np.array(cv2.remap(image, self._map1, self._map2, cv2.INTER_NEAREST))

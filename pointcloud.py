@@ -27,7 +27,18 @@ class PointCloud:
 
     def transform(self, transformation):
         # in place
-        self.world_transformation = transformation
+        self._pcl.transform(transformation)
+        return self
+    
+    def transform_to_rtab(self):
+        # in place
+        # this permutes the y and z coordinates and flips across the x-axis
+        transformation = np.array([
+            [1, 0, 0, 0],
+            [0, 0, 1, 0],
+            [0, -1, 0, 0],
+            [0, 0, 0, 1]
+        ])
         self._pcl.transform(transformation)
         return self
     
