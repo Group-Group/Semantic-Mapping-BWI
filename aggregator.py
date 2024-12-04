@@ -1,6 +1,7 @@
 import numpy as np
 import open3d as o3d
 from collections import defaultdict
+from copy import deepcopy
 from pointcloud import PointCloud
 
 class PointCloudAggregator:
@@ -8,7 +9,7 @@ class PointCloudAggregator:
         self._main: list[PointCloud] = []
         self._scene = defaultdict(list)
         self._eps = eps # tolerance
-        # self._unmerged_pointclouds = defaultdict(list)
+        self._unmerged_pointclouds = defaultdict(list)
 
     @property
     def main(self):
@@ -24,14 +25,16 @@ class PointCloudAggregator:
 
         return self._main
     
-    def nearest_pointcloud(self, pcl: PointCloud) -> PointCloud:
+    def nearest_pointcloud(self, pcl: PointCloud, transformation: np.ndarray) -> PointCloud:
+        copy = deepcopy(pcl)
+        copy.transform(transformation)
         nearest_match_dist = float('inf')
         nearest_match = None
 
-        for target in self._scene[pcl.label]:
-            distance = pcl._pcl.compute_point_cloud_distance(target._pcl)
+        for target in self._scene[copy.label]:
+            distance = copy._pcl.compute_point_cloud_distance(target._pcl)
             distance = np.asarray(distance).mean()
-            if distance <= self._eps and nearest_match_dist > distance:
+            if distance <= self._eps and distance < nearest_match_dist:
                 nearest_match_dist = distance
                 nearest_match = target
 
@@ -43,9 +46,16 @@ class PointCloudAggregator:
 
     def aggregate_pointcloud(self, pcl: PointCloud, target: PointCloud, transformation: np.ndarray, fitness_rejection: float = 0, verbose: bool = True):
         if not target:
+            pcl.transform(transformation)
             self._register_new_pointcloud(pcl)
             return
-                
+        
+        criterion = lambda x: x._pcl.get_axis_alinged_bounding_box().volume() / len(x)
+        
+        if criterion(pcl) > criterion(target):
+            target, pcl = pcl, target
+
+        
         # this is an iterative closest point (icp) algorithm
         # it refines the initial transformation matrix to make the pointclouds match up
         reg_p2p = o3d.pipelines.registration.registration_icp(
@@ -56,6 +66,7 @@ class PointCloudAggregator:
         
         if reg_p2p.fitness < fitness_rejection:
             print(f"[ICP] fitness rejected ({reg_p2p.fitness} < {fitness_rejection}) new registration detected")
+            pcl.transform(transformation)
             self._register_new_pointcloud(pcl)
         else:
             # todo determine which pointcloud to merge onto
@@ -63,84 +74,18 @@ class PointCloudAggregator:
             target += pcl
 
         return target
-    
-    ## ============== Do not use ==============
-    # def aggregate_all(self):
+
+    # def aggregate_all_pointclouds(self):
+
     #     for label in self._unmerged_pointclouds:
-    #         for instances in self._unmerged_pointclouds[label]:
-    #             if len(instances) > 0: # assume pointclouds in this list reference one object
-    #                 merged_pcl = self._merge(instances)
-    #                 self._scene[label].append(merged_pcl)
 
-    # def _nearest_pointcloud(self, pcl, unmerged_list: list[PointCloud]):
-    #     nearest_match_dist = float('inf')
-    #     nearest_match_idx = None
+    #         for group in self._unmerged_pointclouds[label]:
 
-    #     for i, target in enumerate(unmerged_list):
-    #         distance = pcl._pcl.compute_point_cloud_distance(target._pcl)
-    #         distance = np.asarray(distance).mean()
-    #         if nearest_match_dist > distance:
-    #             nearest_match_dist = distance
-    #             nearest_match_idx = i
+    #             while len(group) > 1:
+    #                 p1, p2 = group.pop(), group.pop()
 
-    #     return unmerged_list[nearest_match_idx]
-    
-    # def _choose_target(self, pcl1: PointCloud, pcl2: PointCloud, merged_list: list[PointCloud]):
-    #     distance1 = 0
-    #     distance2 = 0
-
-    #     # maybe dont need to recalculate each time
-    #     for target in merged_list:
-    #         distance1 += np.asarray(pcl1._pcl.compute_point_cloud_distance(target._pcl)).mean()
-    #         distance2 += np.asarray(pcl2._pcl.compute_point_cloud_distance(target._pcl)).mean()
-
-    #     target = pcl1 if min(distance1, distance2) == distance1 else pcl2
-    #     source = pcl1 if target == pcl2 else pcl2
-
-    #     return target, source    
-
-    # def _merge(self, pcl_list: list[PointCloud]) -> PointCloud:
-    #     while len(pcl_list) > 1:
-    #         print("Pointclouds left to merge:", len(pcl_list))
-    #         print("==============================")
-    #         unmerged_list = pcl_list
-    #         merged_list = []
-
-    #         while len(unmerged_list) > 1:
-    #             print('cycle:', len(unmerged_list))
-    #             # find its nearest neighbor
-    #             pcl = unmerged_list.pop()
-    #             neighbor = self._nearest_pointcloud(pcl, unmerged_list)
-    #             unmerged_list.remove(neighbor)
-
-    #             # minimize the distance between merged pointclouds
-    #             target, source = self._choose_target(pcl, neighbor, merged_list)
-
-    #             print('target', target.world_transformation)
-    #             print('source', source.world_transformation)
-
-    #             # icp onto target
-    #             reg_p2p = o3d.pipelines.registration.registration_icp(
-    #                 source._pcl, target._pcl, self._eps * 5, source.world_transformation, o3d.pipelines.registration.TransformationEstimationPointToPoint()
-    #             )
-
-    #             # complete merge
-    #             source.transform(reg_p2p.transformation)
-    #             target += source
-    #             merged_list += [target]
-
-    #             print("after :))))))))))")
-    #             print('target', target.world_transformation)
-    #             print('source', source.world_transformation)
-
-    #         pcl_list = merged_list
-        
-    #     return pcl_list[0]
-
-    # def add_unmerged_pointcloud(self, pcl: PointCloud):
-    #     assert len(pcl.world_transformation) > 0
-    #     if pcl.points.size > 0:
-    #         self._unmerged_pointclouds[pcl.label].append(pcl)
+    #                 self.aggregate_pointcloud(p1, p2,)
+            
 
     # def gather_pointclouds(self, eps=None, min_points=2):
     #     eps = eps or self._eps
@@ -167,5 +112,4 @@ class PointCloudAggregator:
 
     #     self._unmerged_pointclouds = gathered_pointclouds
             
-
 

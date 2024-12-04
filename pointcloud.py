@@ -4,17 +4,23 @@ import open3d as o3d
 from plyfile import PlyData, PlyElement
 
 class PointCloud:
-    def __init__(self, points=[], label=None, transformation=None):
+    def __init__(self, points=[], colors=[], label=None, transformation=None):
         points = [] if isinstance(points, np.ndarray) and points.shape[0] == 0 else points
+        colors = [] if isinstance(colors, np.ndarray) and colors.shape[0] == 0 else colors
         self._pcl = o3d.geometry.PointCloud()
         self._pcl.points = o3d.utility.Vector3dVector(points)
+        self._pcl.colors = o3d.utility.Vector3dVector(colors)
         self.label = label
-        self.world_transformation = transformation # from camera coordinates to world coordinates, should be np array
+        # self.world_transformation = transformation # from camera coordinates to world coordinates, should be np array
         self.timestamp = datetime.now()
     
     @property
     def points(self):
         return np.asarray(self._pcl.points)
+    
+    @property
+    def colors(self):
+        return np.asarray(self._pcl.colors)
     
     @points.setter
     def points(self, value):
@@ -27,6 +33,7 @@ class PointCloud:
 
     def transform(self, transformation):
         # in place
+        # self.world_transformation = transformation
         self._pcl.transform(transformation)
         return self
     
@@ -68,7 +75,8 @@ class PointCloud:
     
     def __add__(self, pcl):
         combined = np.vstack((self.points, pcl.points))
-        return PointCloud(combined, self.label, self.world_transformation)
+        combined2 = np.vstack((self.colors, pcl.colors))
+        return PointCloud(combined, combined2, self.label)
     
     def __len__(self):
         return len(self._pcl.points)

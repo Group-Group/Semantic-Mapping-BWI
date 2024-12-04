@@ -37,9 +37,10 @@ class PointProjector:
         self._D = np.array([k1, k2, p1, p2, k3, k4, k5, k6])
         self._map1, self._map2 = cv2.initUndistortRectifyMap(self._K, self._D, np.array([]), self._K, (1280, 720), cv2.CV_32FC1)
 
-    def get_pointcloud(self, depth_image: np.ndarray, stride: int = 3) -> PointCloud:
+    def get_pointcloud(self, depth_image: np.ndarray, color_image: np.ndarray, stride: int = 3) -> PointCloud:
         rows, cols = depth_image.shape
         points = []
+        colors = []
 
         for u in range(0, cols, stride):
             for v in range(0, rows, stride):
@@ -53,9 +54,10 @@ class PointProjector:
                     continue
 
                 points.append(point[:3])
+                colors.append(color_image[v, u] / 255)
         
         points = np.array(points)
-        pcl = PointCloud(points)
+        pcl = PointCloud(points, colors)
         return pcl
 
     def undistort_image(self, image):
@@ -68,6 +70,7 @@ class PointProjector:
         def add_pointcloud(cloud):
             pcd = o3d.geometry.PointCloud()
             pcd.points = o3d.utility.Vector3dVector(cloud.points)
+            pcd.colors = o3d.utility.Vector3dVector(cloud.colors)
             vis.add_geometry(pcd)
 
         if not isinstance(pcl, list):
