@@ -47,7 +47,7 @@ class PointProjector:
                 depth_value = depth_image[v, u] / 1000
                 if depth_value == 0.0:
                     continue
-
+                
                 uv_h = np.array([u, v, 1., 1 / depth_value])
                 point = depth_value * (self._K_inv @ uv_h)
                 if (np.isnan(point).any()):
@@ -57,6 +57,7 @@ class PointProjector:
                 colors.append(color_image[v, u] / 255)
         
         points = np.array(points)
+        colors = np.array(colors)
         pcl = PointCloud(points, colors)
         return pcl
 

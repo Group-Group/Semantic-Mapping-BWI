@@ -1,7 +1,7 @@
 from datetime import datetime
 import numpy as np
 import open3d as o3d
-from plyfile import PlyData, PlyElement
+# from plyfile import PlyData, PlyElement
 
 class PointCloud:
     def __init__(self, points=[], colors=[], label=None, transformation=np.eye(4)):
@@ -69,12 +69,12 @@ class PointCloud:
         self.points = self.points[~noise]
         return self
     
-    def save(self, filename=None):
-        filename = filename or str(self.timestamp).replace(" ", "_") + "_" + self.label
-        vertex = np.array([(x, y, z) for x, y, z in self.points], 
-                          dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
-        el = PlyElement.describe(vertex, 'vertex')
-        PlyData([el]).write(filename)
+    # def save(self, filename=None):
+    #     filename = filename or str(self.timestamp).replace(" ", "_") + "_" + self.label
+    #     vertex = np.array([(x, y, z) for x, y, z in self.points], 
+    #                       dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
+    #     el = PlyElement.describe(vertex, 'vertex')
+    #     PlyData([el]).write(filename)
 
     def __str__(self):
         return f"{self.label} pointcloud | points: " + str(self.points)
