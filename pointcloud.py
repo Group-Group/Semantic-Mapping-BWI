@@ -4,14 +4,14 @@ import open3d as o3d
 from plyfile import PlyData, PlyElement
 
 class PointCloud:
-    def __init__(self, points=[], colors=[], label=None, transformation=None):
+    def __init__(self, points=[], colors=[], label=None, transformation=np.eye(4)):
         points = [] if isinstance(points, np.ndarray) and points.shape[0] == 0 else points
         colors = [] if isinstance(colors, np.ndarray) and colors.shape[0] == 0 else colors
         self._pcl = o3d.geometry.PointCloud()
         self._pcl.points = o3d.utility.Vector3dVector(points)
         self._pcl.colors = o3d.utility.Vector3dVector(colors)
         self.label = label
-        # self.world_transformation = transformation # from camera coordinates to world coordinates, should be np array
+        self.world_transformation = transformation # captures all transformations from camera space -> transform_1 -> ... -> transform_n -> world space
         self.timestamp = datetime.now()
     
     @property
@@ -30,10 +30,16 @@ class PointCloud:
 
     def is_empty(self):
         return len(self) == 0
-
+    
+    def record_transform(self, transformation):
+        points_copy = list(self.points)
+        colors_copy = list(self.colors)
+        new_transformation = transformation @ self.world_transformation
+        pcl = PointCloud(points_copy, colors_copy, self.label, new_transformation)
+        return pcl
+        
     def transform(self, transformation):
         # in place
-        # self.world_transformation = transformation
         self._pcl.transform(transformation)
         return self
     
@@ -74,9 +80,9 @@ class PointCloud:
         return f"{self.label} pointcloud | points: " + str(self.points)
     
     def __add__(self, pcl):
-        combined = np.vstack((self.points, pcl.points))
-        combined2 = np.vstack((self.colors, pcl.colors))
-        return PointCloud(combined, combined2, self.label)
+        points = np.vstack((self.points, pcl.points))
+        colors = np.vstack((self.colors, pcl.colors))
+        return PointCloud(points, colors, self.label, self.world_transformation)
     
     def __len__(self):
         return len(self._pcl.points)

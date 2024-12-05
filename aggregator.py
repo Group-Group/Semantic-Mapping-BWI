@@ -50,10 +50,10 @@ class PointCloudAggregator:
             self._register_new_pointcloud(pcl)
             return
         
-        criterion = lambda x: x._pcl.get_axis_alinged_bounding_box().volume() / len(x)
+        # criterion = lambda x: x._pcl.get_axis_alinged_bounding_box().volume() / len(x)
         
-        if criterion(pcl) > criterion(target):
-            target, pcl = pcl, target
+        # if criterion(pcl) > criterion(target):
+        #     target, pcl = pcl, target
 
         
         # this is an iterative closest point (icp) algorithm
@@ -74,6 +74,24 @@ class PointCloudAggregator:
             target += pcl
 
         return target
+    
+    def gather_pointclouds(self):
+        """
+        starting state: scene['chair'] -> list of all chairs in the scene (untransformed)
+        ending state: scene['chair'] -> list of all chairs in the scene placed into groups (untransformed)
+
+        testing 12/5
+            - maintain untransformed pointclouds (always, makes it easier to do icp)
+                >>> icp(source, target) -> new transformation for source
+                >>> target + source.transform(icp_transformation) -> merged pointcloud
+                
+                maybe keep this in a list
+                once algo is done, apply all transforms and + into one pointcloud
+                
+            
+            why is it necessary to choose source and target? some frames have more complete data, these should be the target
+        """
+        pass
 
     # def aggregate_all_pointclouds(self):
 
