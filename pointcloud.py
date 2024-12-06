@@ -27,6 +27,12 @@ class PointCloud:
         self._pcl = o3d.geometry.PointCloud()
         self._pcl.points = o3d.utility.Vector3dVector(value)
         self.timestamp = datetime.now()
+    
+    @colors.setter
+    def colors(self, value):
+        self._pcl = o3d.geometry.PointCloud()
+        self._pcl.colors = o3d.utility.Vector3dVector(value)
+        self.timestamp = datetime.now()
 
     def is_empty(self):
         return len(self) == 0
@@ -66,7 +72,14 @@ class PointCloud:
         if verbose:
             print(f"[DBSCAN] Found {labels.max() + 1} clusters")
             print(f"[DBSCAN] Removing {noise.sum()} noise points")
+        print(self.points.shape)
+        print(self.colors.shape)
+        temp = np.copy(self.colors)
+        
         self.points = self.points[~noise]
+        self.colors = temp[~noise]
+        
+        
         return self
     
     # def save(self, filename=None):
