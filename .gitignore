@@ -1,2 +1,4 @@
 Grounded_Segment_Anything/
 __pycache__
+*.ply
+/archived
