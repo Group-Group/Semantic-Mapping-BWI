@@ -1,7 +1,6 @@
 import numpy as np
 import open3d as o3d
 from collections import defaultdict
-from copy import deepcopy
 from pointcloud import PointCloud
 
 class PointCloudAggregator:
@@ -25,14 +24,12 @@ class PointCloudAggregator:
 
         return self._main
     
-    def nearest_pointcloud(self, pcl: PointCloud, transformation: np.ndarray) -> PointCloud:
-        copy = deepcopy(pcl)
-        copy.transform(transformation)
+    def nearest_pointcloud(self, pcl: PointCloud) -> PointCloud:
         nearest_match_dist = float('inf')
         nearest_match = None
 
-        for target in self._scene[copy.label]:
-            distance = copy._pcl.compute_point_cloud_distance(target._pcl)
+        for target in self._scene[pcl.label]:
+            distance = pcl._pcl.compute_point_cloud_distance(target._pcl)
             distance = np.asarray(distance).mean()
             if distance <= self._eps and distance < nearest_match_dist:
                 nearest_match_dist = distance
@@ -44,34 +41,35 @@ class PointCloudAggregator:
         if not pcl.is_empty():
             self._scene[pcl.label].append(pcl)
 
-    def aggregate_pointcloud(self, pcl: PointCloud, target: PointCloud, transformation: np.ndarray, fitness_rejection: float = 0, verbose: bool = True):
+    def aggregate_pointcloud(self, pcl: PointCloud, target: PointCloud, verbose: bool = True):
         if not target:
-            pcl.transform(transformation)
             self._register_new_pointcloud(pcl)
             return
         
+        ## todo determine criteria for switching target and source
+        ## todo target should not have incomplete data (so it will be the most complete pointcloud we have)
         # criterion = lambda x: x._pcl.get_axis_alinged_bounding_box().volume() / len(x)
         
         # if criterion(pcl) > criterion(target):
         #     target, pcl = pcl, target
+        #     remove target from dictionary, and replace it with source
 
-        
-        # this is an iterative closest point (icp) algorithm
-        # it refines the initial transformation matrix to make the pointclouds match up
+        ## todo if icp doesnt work out we can try coherent point drift (not implemented in open3d)
+        ## todo it doesn't require close point matching (soft matching) and might work well with incomplete data
+        ## todo it is slower than icp
+
+        # icp to refine initial transformation
         reg_p2p = o3d.pipelines.registration.registration_icp(
-            pcl._pcl, target._pcl, self._eps, transformation, o3d.pipelines.registration.TransformationEstimationPointToPoint()
+            pcl._pcl, target._pcl, self._eps, np.eye(4), 
+            o3d.pipelines.registration.TransformationEstimationPointToPoint(),
+            o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=100)
         )
         if verbose:
             print(f"[ICP] Fitness (higher is better): {reg_p2p.fitness}\tRMSE (lower is better): {reg_p2p.inlier_rmse}")
         
-        if reg_p2p.fitness < fitness_rejection:
-            print(f"[ICP] fitness rejected ({reg_p2p.fitness} < {fitness_rejection}) new registration detected")
-            pcl.transform(transformation)
-            self._register_new_pointcloud(pcl)
-        else:
-            # todo determine which pointcloud to merge onto
-            pcl = pcl.transform(reg_p2p.transformation)
-            target += pcl
+
+        pcl = pcl.transform(reg_p2p.transformation)
+        target += pcl
 
         return target
     
