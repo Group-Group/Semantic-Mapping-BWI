@@ -4,16 +4,16 @@ import open3d as o3d
 from plyfile import PlyData, PlyElement
 
 class PointCloud:
-    def __init__(self, points=[], colors=[], label=None):
+    def __init__(self, points=[], colors=[], label=None, transformation:np.ndarray=np.eye(4)):
         points = [] if isinstance(points, np.ndarray) and points.shape[0] == 0 else points
         colors = [] if isinstance(colors, np.ndarray) and colors.shape[0] == 0 else colors
         self._pcl = o3d.geometry.PointCloud()
         self._pcl.points = o3d.utility.Vector3dVector(points)
         self._pcl.colors = o3d.utility.Vector3dVector(colors)
         self.label = label
-        self._transformation = None # to world frame
-        self.rotation = None
-        self.translation = None
+        self._transformation = transformation # to world frame
+        self.rotation = transformation[:3, :3]
+        self.translation = transformation[:, 3][:3]
         self.timestamp = datetime.now()
     
     @property

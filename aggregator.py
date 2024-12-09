@@ -9,21 +9,25 @@ class PointCloudAggregator:
         self._eps = eps # tolerance
 
     @property
+    def scene(self):
+        return self._scene
+    
+    @scene.getter
+    def scene(self):
+        return self._flatten_scene()
+
+    @property
     def main(self):
         return self._main
     
     @main.getter
     def main(self):
-        self._flatten_scene()
-
         # compile main pointcloud and return
         self._main = PointCloud()
-        for label in self._scene:
-            for pcl in self._scene[label]:
+        for label in self.scene:
+            for pcl in self.scene[label]:
                 if len(pcl) > 100:
                     self._main += pcl
-                # else:
-                #     self._remove_pointcloud(pcl)
 
         return self._main
     
@@ -31,11 +35,10 @@ class PointCloudAggregator:
         new_scene = defaultdict(list)
         for label in self._scene:
             for group in self._scene[label]:
-                if not isinstance(group[0], list):
-                    return
                 pcl = sum(group, PointCloud(label=label))
                 new_scene[label].append(pcl)
-        self._scene = new_scene
+
+        return new_scene
 
     def _register_pointcloud(self, pcl: PointCloud):
         self._scene[pcl.label] += [[pcl]]
@@ -70,7 +73,7 @@ class PointCloudAggregator:
                 nearest_match_dist = distance
                 target = instance
             
-            rot_deg = self.calculate_rotation_angle(pcl.rotation, instance.rotation)
+            rot_deg = self._calculate_rotation_angle(pcl.rotation, instance.rotation)
             min_rot_dist = min(min_rot_dist, rot_deg)
 
         if min_rot_dist > min_view_threshold: # it's a new view of the object (gain at least 30 deg)
@@ -81,7 +84,7 @@ class PointCloudAggregator:
             target_group.remove(target)
             target_group.append(pcl)
 
-    def calculate_rotation_angle(self, R1, R2):
+    def _calculate_rotation_angle(self, R1, R2):
         R_rel = np.dot(R1.T, R2)  # R1^T * R2
         trace_R_rel = np.trace(R_rel)
         cos_theta = (trace_R_rel - 1) / 2.0
