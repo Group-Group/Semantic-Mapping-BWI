@@ -1,17 +1,16 @@
 from datetime import datetime
 import numpy as np
 import open3d as o3d
-# from plyfile import PlyData, PlyElement
+from plyfile import PlyData, PlyElement
 
 class PointCloud:
-    def __init__(self, points=[], colors=[], label=None, transformation=np.eye(4)):
+    def __init__(self, points=[], colors=[], label=None):
         points = [] if isinstance(points, np.ndarray) and points.shape[0] == 0 else points
         colors = [] if isinstance(colors, np.ndarray) and colors.shape[0] == 0 else colors
         self._pcl = o3d.geometry.PointCloud()
         self._pcl.points = o3d.utility.Vector3dVector(points)
         self._pcl.colors = o3d.utility.Vector3dVector(colors)
         self.label = label
-        self.world_transformation = transformation # captures all transformations from camera space -> transform_1 -> ... -> transform_n -> world space
         self.timestamp = datetime.now()
     
     @property
@@ -30,19 +29,10 @@ class PointCloud:
     
     @colors.setter
     def colors(self, value):
-        self._pcl = o3d.geometry.PointCloud()
         self._pcl.colors = o3d.utility.Vector3dVector(value)
-        self.timestamp = datetime.now()
 
     def is_empty(self):
         return len(self) == 0
-    
-    def record_transform(self, transformation):
-        points_copy = list(self.points)
-        colors_copy = list(self.colors)
-        new_transformation = transformation @ self.world_transformation
-        pcl = PointCloud(points_copy, colors_copy, self.label, new_transformation)
-        return pcl
         
     def transform(self, transformation):
         # in place
@@ -61,7 +51,7 @@ class PointCloud:
         self._pcl.transform(transformation)
         return self
     
-    def clean(self, eps=0.05, min_points=10, verbose: bool=True):
+    def clean(self, eps=0.05, min_points=50, verbose: bool=True):
         # deduplication
         self._pcl.remove_duplicated_points()
 
@@ -71,23 +61,23 @@ class PointCloud:
         noise = labels == -1
         if verbose:
             print(f"[DBSCAN] Found {labels.max() + 1} clusters")
-            print(f"[DBSCAN] Removing {noise.sum()} noise points")
-        print(self.points.shape)
-        print(self.colors.shape)
+            print(f"[DBSCAN] Discovered {noise.sum()} noise points")
+
         temp = np.copy(self.colors)
-        
         self.points = self.points[~noise]
         self.colors = temp[~noise]
         
-        
         return self
     
-    # def save(self, filename=None):
-    #     filename = filename or str(self.timestamp).replace(" ", "_") + "_" + self.label
-    #     vertex = np.array([(x, y, z) for x, y, z in self.points], 
-    #                       dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
-    #     el = PlyElement.describe(vertex, 'vertex')
-    #     PlyData([el]).write(filename)
+    def save(self, filename=None):
+        filename = filename or str(self.timestamp).replace(" ", "-").replace(":", "-").replace(".", "-") + "-" + self.label
+        vertex = np.array([(x, y, z) for x, y, z in self.points], 
+                          dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
+        el = PlyElement.describe(vertex, 'vertex')
+        PlyData([el]).write(filename)
+
+    def score(self):
+        return self._pcl.get_axis_aligned_bounding_box().volume() * len(self)
 
     def __str__(self):
         return f"{self.label} pointcloud | points: " + str(self.points)
@@ -95,7 +85,7 @@ class PointCloud:
     def __add__(self, pcl):
         points = np.vstack((self.points, pcl.points))
         colors = np.vstack((self.colors, pcl.colors))
-        return PointCloud(points, colors, self.label, self.world_transformation)
+        return PointCloud(points, colors, self.label)
     
     def __len__(self):
         return len(self._pcl.points)
