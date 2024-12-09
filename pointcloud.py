@@ -11,6 +11,9 @@ class PointCloud:
         self._pcl.points = o3d.utility.Vector3dVector(points)
         self._pcl.colors = o3d.utility.Vector3dVector(colors)
         self.label = label
+        self._transformation = None # to world frame
+        self.rotation = None
+        self.translation = None
         self.timestamp = datetime.now()
     
     @property
@@ -21,6 +24,10 @@ class PointCloud:
     def colors(self):
         return np.asarray(self._pcl.colors)
     
+    @property
+    def transformation(self):
+        return self._transformation
+    
     @points.setter
     def points(self, value):
         self._pcl = o3d.geometry.PointCloud()
@@ -30,6 +37,12 @@ class PointCloud:
     @colors.setter
     def colors(self, value):
         self._pcl.colors = o3d.utility.Vector3dVector(value)
+
+    @transformation.setter
+    def transformation(self, value):
+        self._transformation = value
+        self.rotation = value[:3, :3]
+        self.translation = value[:, 3][:3]
 
     def is_empty(self):
         return len(self) == 0
@@ -52,6 +65,9 @@ class PointCloud:
         return self
     
     def clean(self, eps=0.05, min_points=50, verbose: bool=True):
+        if self.is_empty():
+            return self
+
         # deduplication
         self._pcl.remove_duplicated_points()
 
