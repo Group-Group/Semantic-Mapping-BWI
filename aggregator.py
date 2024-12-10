@@ -1,14 +1,21 @@
 import numpy as np
-import open3d as o3d
 from collections import defaultdict
 from pointcloud import PointCloud
+from views import PointCloudView
 
 class PointCloudAggregator:
-    def __init__(self, eps=0.75):
-        self._main: list[PointCloud] = []
-        self._scene = defaultdict(list)
+    def __init__(self, eps:float=0.75):
+        self._main: PointCloud = None
+        self._scene: defaultdict[str, list[list[PointCloudView]]] = defaultdict(list)
         self._eps = eps # tolerance
-        self._unmerged_pointclouds = defaultdict(list)
+
+    @property
+    def scene(self):
+        return self._scene
+    
+    @scene.getter
+    def scene(self):
+        return self._flatten_scene()
 
     @property
     def main(self):
@@ -17,115 +24,78 @@ class PointCloudAggregator:
     @main.getter
     def main(self):
         # compile main pointcloud and return
-        self._main = []
-        for label in self._scene:
-            for pcl in self._scene[label]:
-                self._main += [pcl]
+        self._main = PointCloud()
+        for label in self.scene:
+            for pcl in self.scene[label]:
+                if len(pcl) > 100:
+                    self._main += pcl
 
         return self._main
-    
-    def nearest_pointcloud(self, pcl: PointCloud) -> PointCloud:
+      
+    def nearest_pointcloud(self, pcl: PointCloud) -> list[PointCloudView]:
         nearest_match_dist = float('inf')
         nearest_match = None
 
-        for target in self._scene[pcl.label]:
+        for instance in self._scene[pcl.label]:
+            target = PointCloud()
+            for view in instance:
+                target += view.get_pointcloud()
+
             distance = pcl._pcl.compute_point_cloud_distance(target._pcl)
             distance = np.asarray(distance).mean()
             if distance <= self._eps and distance < nearest_match_dist:
                 nearest_match_dist = distance
-                nearest_match = target
+                nearest_match = instance
 
         return nearest_match
-    
-    def _register_new_pointcloud(self, pcl: PointCloud):
-        if not pcl.is_empty():
-            self._scene[pcl.label].append(pcl)
 
-    def aggregate_pointcloud(self, pcl: PointCloud, target: PointCloud, verbose: bool = True):
-        if not target:
-            self._register_new_pointcloud(pcl)
+    def aggregate_pointcloud(self, pcl: PointCloud, instance: list[PointCloudView], min_view_threshold=20):
+        if not instance: # its a new object
+            self._register_pointcloud(pcl, min_view_threshold)
             return
         
-        ## todo determine criteria for switching target and source
-        ## todo target should not have incomplete data (so it will be the most complete pointcloud we have)
-        # criterion = lambda x: x._pcl.get_axis_alinged_bounding_box().volume() / len(x)
-        
-        # if criterion(pcl) > criterion(target):
-        #     target, pcl = pcl, target
-        #     remove target from dictionary, and replace it with source
-
-        ## todo if icp doesnt work out we can try coherent point drift (not implemented in open3d)
-        ## todo it doesn't require close point matching (soft matching) and might work well with incomplete data
-        ## todo it is slower than icp
-
-        # icp to refine initial transformation
-        reg_p2p = o3d.pipelines.registration.registration_icp(
-            pcl._pcl, target._pcl, self._eps, np.eye(4), 
-            o3d.pipelines.registration.TransformationEstimationPointToPoint(),
-            o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=100)
-        )
-        if verbose:
-            print(f"[ICP] Fitness (higher is better): {reg_p2p.fitness}\tRMSE (lower is better): {reg_p2p.inlier_rmse}")
-        
-
-        pcl = pcl.transform(reg_p2p.transformation)
-        target += pcl
-
-        return target
-    
-    def gather_pointclouds(self):
-        """
-        starting state: scene['chair'] -> list of all chairs in the scene (untransformed)
-        ending state: scene['chair'] -> list of all chairs in the scene placed into groups (untransformed)
-
-        testing 12/5
-            - maintain untransformed pointclouds (always, makes it easier to do icp)
-                >>> icp(source, target) -> new transformation for source
-                >>> target + source.transform(icp_transformation) -> merged pointcloud
-                
-                maybe keep this in a list
-                once algo is done, apply all transforms and + into one pointcloud
-                
+        # find target
+        nearest_match_dist = float('inf')
+        min_rot_dist = float('inf')
+        target = None
+        target_view = None
+        for view in instance:
+            other = view.get_pointcloud()
+            distance = pcl._pcl.compute_point_cloud_distance(other._pcl)
+            distance = np.asarray(distance).mean()
+            if distance < nearest_match_dist:
+                nearest_match_dist = distance
+                target = other
+                target_view = view
             
-            why is it necessary to choose source and target? some frames have more complete data, these should be the target
-        """
-        pass
+            min_rot_dist = min(min_rot_dist, view.get_min_angle_gain(other.rotation))
 
-    # def aggregate_all_pointclouds(self):
+        if min_rot_dist > min_view_threshold: # it's a new view of the object (gain at least 20 deg)
+            instance.append(PointCloudView(pcl, min_view_threshold))
+            return
 
-    #     for label in self._unmerged_pointclouds:
+        if pcl.score() > target.score(): # found a better representation of the object
+            target_view.remove(target)
+            target_view.add(pcl)
 
-    #         for group in self._unmerged_pointclouds[label]:
+    def refine_views(self, eps=0.50, max_iters=500):
+        # do icp to refine views
+        # carson said icp worked for him, so this is my last attempt
+        for label in self._scene:
+            for instance in self._scene[label]:
+                for view in instance:
+                    view.refine_view(eps, max_iters)
 
-    #             while len(group) > 1:
-    #                 p1, p2 = group.pop(), group.pop()
+    def _flatten_scene(self):
+        new_scene = defaultdict(list)
+        for label in self._scene:
+            for instance in self._scene[label]:
+                pcl = PointCloud(label=label)
+                for view in instance:
+                    pcl += view.get_pointcloud()
 
-    #                 self.aggregate_pointcloud(p1, p2,)
-            
+                new_scene[label].append(pcl)
+        return new_scene
 
-    # def gather_pointclouds(self, eps=None, min_points=2):
-    #     eps = eps or self._eps
-    #     ## each pointcloud is an observation of an object
-    #     ## it needs to be placed in the right bucket before merging
-        
-    #     gathered_pointclouds = defaultdict(list)
-    #     ## try a dbscan approach, reduce each pointcloud to its centroid
-    #     for label in self._unmerged_pointclouds:
-    #         centroids = []
-
-    #         for target in self._unmerged_pointclouds[label]:
-    #             centroids.append(target.points.mean(axis=0)) # (x, y, z)
-            
-    #         centroids = PointCloud(centroids)
-    #         buckets = centroids._pcl.cluster_dbscan(eps=eps, min_points=min_points)
-    #         buckets = np.array(buckets)
-    #         buckets = buckets[buckets != -1]
-
-    #         observations = np.array(self._unmerged_pointclouds[label])
-    #         gathered_pointclouds[label] = [0] * len(np.unique(buckets))
-    #         for i, bucket in enumerate(np.unique(buckets)):
-    #             gathered_pointclouds[label][i] = observations[buckets == bucket].tolist()
-
-    #     self._unmerged_pointclouds = gathered_pointclouds
-            
-
+    def _register_pointcloud(self, pcl: PointCloud, min_view_threshold: float):
+        self._scene[pcl.label] += [[PointCloudView(pcl, min_view_threshold)]]
