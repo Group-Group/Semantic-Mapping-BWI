@@ -31,7 +31,7 @@ class PointCloudAggregator:
                     self._main += pcl
 
         return self._main
-
+      
     def nearest_pointcloud(self, pcl: PointCloud) -> list[PointCloudView]:
         nearest_match_dist = float('inf')
         nearest_match = None
