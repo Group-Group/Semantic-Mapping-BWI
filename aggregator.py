@@ -38,7 +38,7 @@ class PointCloudAggregator:
 
         for instance in self._scene[pcl.label]:
             target = PointCloud()
-            for view in instance:
+            for view in instance: # get the pointcloud represented by these views
                 target += view.get_pointcloud()
 
             distance = pcl._pcl.compute_point_cloud_distance(target._pcl)
@@ -49,35 +49,26 @@ class PointCloudAggregator:
 
         return nearest_match
 
-    def aggregate_pointcloud(self, pcl: PointCloud, instance: list[PointCloudView], min_view_threshold=20):
+    def aggregate_pointcloud(self, pcl: PointCloud, instance: list[PointCloudView], min_view_threshold=15):
         if not instance: # its a new object
             self._register_pointcloud(pcl, min_view_threshold)
             return
         
-        # find target
-        nearest_match_dist = float('inf')
+        # find the target view, pcl should belong to this group
         min_rot_dist = float('inf')
-        target = None
+        # target = None
         target_view = None
         for view in instance:
-            other = view.get_pointcloud()
-            distance = pcl._pcl.compute_point_cloud_distance(other._pcl)
-            distance = np.asarray(distance).mean()
-            if distance < nearest_match_dist:
-                nearest_match_dist = distance
-                target = other
+            min_rot_dist = min(min_rot_dist, view.get_min_angle_gain(pcl.rotation))
+            if view.is_same_view(pcl.rotation):
                 target_view = view
-            
-            min_rot_dist = min(min_rot_dist, view.get_min_angle_gain(other.rotation))
-
-        if min_rot_dist > min_view_threshold: # it's a new view of the object (gain at least 20 deg)
+                
+        if min_rot_dist > min_view_threshold: # it's a new view of the object (gain at least theta deg)
             instance.append(PointCloudView(pcl, min_view_threshold))
             return
-
-        if pcl.score() > target.score(): # found a better representation of the object
-            target_view.remove(target)
-            target_view.add(pcl)
-
+        
+        target_view.add(pcl)
+        
     def refine_views(self, eps=0.50, max_iters=500):
         # do icp to refine views
         # carson said icp worked for him, so this is my last attempt

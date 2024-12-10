@@ -6,7 +6,7 @@ class PointCloudView:
     """
     A view of an object from a specific range of angles
     """
-    def __init__(self, pointclouds: PointCloud, theta:float=20):
+    def __init__(self, pointclouds: PointCloud, theta: float):
         if not isinstance(pointclouds, list):
             pointclouds = [pointclouds]
         self.pointclouds: list[PointCloud] = pointclouds
@@ -48,7 +48,7 @@ class PointCloudView:
                 o3d.pipelines.registration.ICPConvergenceCriteria(max_iteration=max_iters)
             )
 
-            source.transform(reg_p2p.transform)
+            source.transform(reg_p2p.transformation)
             target += pcl
         
         self.pointclouds = [target]
