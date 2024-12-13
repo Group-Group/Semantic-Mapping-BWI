@@ -170,3 +170,8 @@ cython_debug/
 Grounded_Segment_Anything/
 *.ply
 /archived
+kitchen
+cart
+pictures
+environment_blue_chair
+red_chair

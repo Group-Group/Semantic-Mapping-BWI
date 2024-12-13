@@ -52,18 +52,6 @@ class PointCloud:
         self._pcl.transform(transformation)
         return self
     
-    def transform_to_rtab(self):
-        # in place
-        # this permutes the y and z coordinates and flips across the x-axis
-        transformation = np.array([
-            [1, 0, 0, 0],
-            [0, 0, 1, 0],
-            [0, -1, 0, 0],
-            [0, 0, 0, 1]
-        ])
-        self._pcl.transform(transformation)
-        return self
-    
     def clean(self, eps=0.05, min_points=50, verbose: bool=True):
         if self.is_empty():
             return self
@@ -87,9 +75,13 @@ class PointCloud:
     
     def save(self, filename=None):
         filename = filename or str(self.timestamp).replace(" ", "-").replace(":", "-").replace(".", "-") + "-" + self.label
-        vertex = np.array([(x, y, z) for x, y, z in self.points], 
-                          dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4')])
+        vertex = np.array([(x, y, z, 0, 0, 0) for x, y, z in self.points], 
+                          dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4'), ('red', 'u1'), ('green', 'u1'), ('blue', 'u1')])
+        vertex['red'] = (self.colors[:, 0] * 255).astype('u1')
+        vertex['green'] = (self.colors[:, 1] * 255).astype('u1')
+        vertex['blue'] = (self.colors[:, 2] * 255).astype('u1')
         el = PlyElement.describe(vertex, 'vertex')
+
         PlyData([el]).write(filename)
 
     def score(self):
